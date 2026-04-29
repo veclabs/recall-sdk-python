@@ -1,50 +1,19 @@
-# solvec - Python SDK for Recall by VecLabs
+# recall-sdk-python
 
-> Cryptographic memory layer for AI agents. Fast. Private. Verifiable on Solana.
+Python SDK for [VecLabs Recall](https://github.com/veclabs/recall) — decentralized vector memory for AI agents.
 
-[![PyPI version](https://badge.fury.io/py/solvec.svg)](https://pypi.org/project/solvec/)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-
----
-
-## Hosted Mode (Recommended)
-
-```python
-from solvec import SolVec
-
-# Get your API key at app.veclabs.xyz
-sv = SolVec(api_key="vl_live_...")
-collection = sv.collection("agent-memory", dimensions=1536)
-
-# All operations route to api.veclabs.xyz
-collection.upsert([{
-    "id": "mem_001",
-    "values": embedding,
-    "metadata": {"text": "User prefers dark mode"}
-}])
-
-results = collection.query(vector=query_embedding, top_k=5)
-proof = collection.verify()
-```
-
-## Self-Hosted Mode
+[![PyPI](https://img.shields.io/badge/pypi-solvec-orange.svg)](https://pypi.org/project/solvec/)
+[![Version](https://img.shields.io/badge/version-0.1.0a8-blue.svg)]()
+[![Tests](https://img.shields.io/badge/tests-48%20passing-brightgreen.svg)]()
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)]()
 
 ---
 
-## Installation
+## Install
 
 ```bash
-pip install solvec
-
-# With Solana verification (Phase 2)
-pip install "solvec[solana]"
-
-# With Shadow Drive (Phase 5)
-pip install "solvec[shadow-drive]"
-
-# Full install
-pip install "solvec[all]"
+pip install solvec --pre
 ```
 
 ---
@@ -54,183 +23,215 @@ pip install "solvec[all]"
 ```python
 from solvec import SolVec
 
-sv = SolVec()
+sv = SolVec(api_key="your-api-key")
 collection = sv.collection("agent-memory", dimensions=1536)
 
-# Insert memories
-collection.upsert([
-    {"id": "mem_001", "values": embedding, "metadata": {"source": "conversation"}},
-    {"id": "mem_002", "values": embedding2, "metadata": {"source": "document"}},
-])
+# Upsert vectors
+collection.upsert([{
+    "id": "mem_001",
+    "values": [...],
+    "metadata": {"text": "User prefers dark mode"}
+}])
 
-# Semantic search
-response = collection.query(vector=query_embedding, top_k=5)
-for match in response.matches:
-    print(f"{match.id}: {match.score:.4f} - {match.metadata}")
+# Query
+results = collection.query(vector=[...], top_k=5)
+
+# Verify collection integrity against on-chain Merkle root
+proof = collection.verify()
+print(proof.solana_explorer_url)
 ```
 
 ---
 
-## Phase 4: Encryption
+## Authentication
+
+Get an API key at [app.veclabs.xyz](https://app.veclabs.xyz).
 
 ```python
-from solvec import SolVec, EncryptionConfig
+import os
+from solvec import SolVec
 
+sv = SolVec(api_key=os.environ["RECALL_API_KEY"])
+```
+
+**Self-hosted with Shadow Drive** (bring your own Solana wallet):
+
+```python
 sv = SolVec(
-    encryption=EncryptionConfig(
-        enabled=True,
-        passphrase="your-secret-passphrase"
-    )
+    network="devnet",
+    wallet="~/.config/solana/id.json",
+    shadow_drive=True
 )
-collection = sv.collection("encrypted-memories", dimensions=1536)
-# All vectors and metadata are encrypted at rest using AES-256-GCM
-```
-
----
-
-## Phase 2: Solana Verification
-
-```python
-from solvec import SolVec, SolanaConfig
-
-sv = SolVec(
-    solana=SolanaConfig(
-        enabled=True,
-        network="devnet",
-        keypair="/path/to/keypair.json"
-    )
-)
-collection = sv.collection("verified-memories", dimensions=1536)
-
-# After upsert, Merkle root is posted to Solana asynchronously
-collection.upsert([{"id": "mem_001", "values": embedding}])
-
-# Verify integrity
-result = collection.verify()
-print(f"Tampered: {not result.verified}")
-```
-
----
-
-## Phase 5: Shadow Drive
-
-```python
-from solvec import SolVec, ShadowDriveConfig
-
-sv = SolVec(
-    shadow_drive=ShadowDriveConfig(
-        enabled=True,
-        keypair="/path/to/keypair.json",
-        snapshot_interval=10,  # snapshot every 10 writes
-    )
-)
-collection = sv.collection("persistent-memories", dimensions=1536)
-```
-
----
-
-## Phase 6: Memory Inspector
-
-```python
-from solvec import SolVec, InspectorQuery
-
-sv = SolVec()
-collection = sv.collection("agent-memory", dimensions=1536)
-
-# Write some memories
-collection.upsert([
-    {"id": "mem_001", "values": embedding1, "metadata": {"type": "episodic"}},
-    {"id": "mem_002", "values": embedding2, "metadata": {"type": "semantic"}},
-])
-
-# Get the inspector
-inspector = collection.inspector()
-
-# Fast collection stats
-stats = inspector.stats()
-print(f"Total: {stats.total_memories} memories")
-print(f"Size: {stats.memory_usage_bytes} bytes")
-print(f"Merkle root: {stats.current_merkle_root}")
-
-# Filter memories
-result = inspector.inspect(InspectorQuery(
-    metadata_filter={"type": "episodic"},
-    limit=20,
-))
-for record in result.memories:
-    print(f"{record.id} - written at {record.written_at}ms")
-
-# Get a single record
-record = inspector.get("mem_001")
-print(f"Vector dim: {len(record.vector)}")
-print(f"Merkle root at write: {record.merkle_root_at_write}")
-
-# Semantic search with full records
-matches = inspector.search_with_records(query_vector, k=5)
-for score, record in matches:
-    print(f"{record.id}: {score:.4f}")
-
-# Merkle history
-history = inspector.merkle_history()
-for entry in history:
-    print(f"{entry.trigger} - {entry.memory_count_at_time} memories - {entry.root[:16]}...")
-
-# Tamper detection
-proof = inspector.verify()
-print("All good" if proof["match"] else "TAMPERED!")
 ```
 
 ---
 
 ## API Reference
 
-### `SolVec`
+### `SolVec(api_key?, network?, wallet?, shadow_drive?)`
+
+Creates a client. Use `api_key` for hosted mode or `wallet` + `shadow_drive=True` for self-hosted.
+
+### `sv.collection(name, dimensions?)`
+
+Returns a collection handle. Creates the collection on first write. `dimensions` required on first write, inferred after.
 
 ```python
-SolVec(
-    encryption: EncryptionConfig = None,
-    solana: SolanaConfig = None,
-    shadow_drive: ShadowDriveConfig = None,
-)
+collection = sv.collection("my-collection", dimensions=1536)
 ```
 
-| Method                                 | Description                       |
-| -------------------------------------- | --------------------------------- |
-| `collection(name, dimensions, metric)` | Get or create a named collection  |
-| `list_collections()`                   | List all collection names         |
-| `drop_collection(name)`                | Remove a collection from registry |
+### `collection.upsert(vectors)`
 
-### `SolVecCollection`
+Insert or update vectors. Each vector requires `id` and `values`. `metadata` is optional.
 
-| Method                         | Returns              | Description                    |
-| ------------------------------ | -------------------- | ------------------------------ |
-| `upsert(records)`              | `UpsertResponse`     | Insert or update vectors       |
-| `query(vector, top_k, filter)` | `QueryResponse`      | Similarity search              |
-| `delete(ids)`                  | `DeleteResponse`     | Delete by ID                   |
-| `fetch(ids)`                   | `dict`               | Fetch by exact ID              |
-| `describe_index_stats()`       | `CollectionStats`    | Basic statistics               |
-| `verify()`                     | `VerificationResult` | Merkle root verification       |
-| `inspector()`                  | `MemoryInspector`    | Get Memory Inspector (Phase 6) |
+```python
+collection.upsert([
+    {"id": "v1", "values": [...], "metadata": {"source": "gpt-4"}},
+    {"id": "v2", "values": [...]}
+])
+```
 
-### `MemoryInspector`
+After every upsert, a SHA-256 Merkle root of all vector IDs is posted to the Solana Anchor program on-chain.
 
-| Method                           | Returns                            | Description              |
-| -------------------------------- | ---------------------------------- | ------------------------ |
-| `stats()`                        | `InspectorCollectionStats`         | O(1) collection stats    |
-| `inspect(query)`                 | `InspectionResult`                 | Filtered memory list     |
-| `get(id)`                        | `MemoryRecord \| None`             | Single record by ID      |
-| `search_with_records(vector, k)` | `list[tuple[float, MemoryRecord]]` | Search with full records |
-| `merkle_history()`               | `list[MerkleHistoryEntry]`         | Root change history      |
-| `verify()`                       | `dict`                             | Tamper detection         |
+### `collection.query(vector, top_k?, metric?)`
+
+Nearest-neighbor search. Returns top-k results with scores and metadata.
+
+```python
+results = collection.query(
+    vector=[...],
+    top_k=10,              # default: 10
+    metric="cosine"        # cosine (default), euclidean, dot
+)
+
+for match in results.matches:
+    print(match.id, match.score, match.metadata)
+```
+
+### `collection.delete(ids)`
+
+Delete vectors by ID.
+
+```python
+collection.delete(["v1", "v2"])
+```
+
+### `collection.verify()`
+
+Fetches the on-chain Merkle root from Solana and verifies it against the current collection state.
+
+```python
+proof = collection.verify()
+print(proof.valid)               # bool
+print(proof.on_chain_root)       # str
+print(proof.computed_root)       # str
+print(proof.solana_explorer_url) # str
+```
+
+### `collection.stats()`
+
+Returns collection statistics.
+
+```python
+stats = collection.stats()
+print(stats.vector_count)   # int
+print(stats.dimensions)     # int
+print(stats.merkle_root)    # str
+```
 
 ---
 
-## Running Tests
+## Migrating from Pinecone
 
-```bash
-cd sdk/python
-pip install -e ".[dev]"
-pytest tests/ -v
+The API is intentionally shaped to match Pinecone's client. Migration is three line changes:
+
+```python
+# Before
+from pinecone import Pinecone
+pc = Pinecone(api_key="YOUR_KEY")
+index = pc.Index("my-index")
+
+# After
+from solvec import SolVec
+sv = SolVec(api_key="YOUR_KEY")
+index = sv.collection("my-index")
+
+# Everything below stays identical
+index.upsert(vectors=[...])
+index.query(vector=[...], top_k=10)
+index.verify()  # new — Pinecone has no equivalent
 ```
 
-Expected: **41 tests passing** - 12 collection, 8 encryption, 6 merkle, 11 inspector, 4 shadow drive.
+---
+
+## Usage with LangChain
+
+```python
+from langchain.vectorstores import VecLabsRecall
+from langchain.embeddings import OpenAIEmbeddings
+
+vectorstore = VecLabsRecall(
+    api_key="your-api-key",
+    collection="langchain-memory",
+    embedding=OpenAIEmbeddings()
+)
+
+vectorstore.add_texts(["User prefers dark mode", "Meeting at 3pm"])
+docs = vectorstore.similarity_search("user preferences", k=5)
+```
+
+> LangChain integration is in progress. Star the repo to follow along.
+
+---
+
+## Development
+
+```bash
+git clone https://github.com/veclabs/recall-sdk-python
+cd recall-sdk-python
+
+pip install hatch
+hatch build
+pytest tests/ -v   # 48 tests
+```
+
+---
+
+## Status
+
+| Feature                   | Status                             |
+| ------------------------- | ---------------------------------- |
+| Hosted API (api key mode) | ✅ Live                            |
+| Shadow Drive (self-host)  | ✅ Available — `shadow_drive=True` |
+| Merkle verification       | ✅ Complete                        |
+| TypeScript parity         | ✅ 48/48 tests — full parity       |
+| LangChain integration     | 📋 In progress                     |
+| LlamaIndex integration    | 📋 Planned                         |
+| AutoGen integration       | 📋 Planned                         |
+
+---
+
+## Related
+
+- **Rust core engine** → [`veclabs/recall`](https://github.com/veclabs/recall)
+- **TypeScript SDK** → [`veclabs/recall-sdk-js`](https://github.com/veclabs/recall-sdk-js)
+- **Hosted API** → [api.veclabs.xyz](https://api.veclabs.xyz)
+- **Dashboard** → [app.veclabs.xyz](https://app.veclabs.xyz)
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Priority: LangChain integration, LlamaIndex integration, AutoGen integration.
+
+---
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+
+---
+
+[veclabs.xyz](https://veclabs.xyz) · [@veclabs](https://x.com/veclabs46369) · [Discord](https://discord.gg/veclabs)
