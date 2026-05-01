@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "solvec"
-version = "0.1.0a9"
+version = "0.1.0a10"
 description = "Python SDK for Recall by VecLabs - cryptographic memory layer for AI agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -47,6 +47,7 @@ dev = [
   "pytest-cov>=5.0.0",
   "ruff>=0.4.0",
 ]
+langchain = ["langchain-core>=0.3.0"]
 all = ["solvec[solana,shadow-drive,dev]"]
 
 [project.urls]
